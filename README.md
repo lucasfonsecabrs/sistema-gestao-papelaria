@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema de Gestão para Papelaria Personalizada
 
-## Getting Started
+Sistema web de gestão desenvolvido para a **Malô Personalizados**, uma MEI de papelaria personalizada de Piquete-SP (caixinhas, toppers e kits para festas infantis).
 
-First, run the development server:
+Projeto Integrador em Computação II — UNIVESP, 2026.
+Autor: Lucas Henrique Gonçalves da Fonseca.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+**Produção:** https://pi-system-azure.vercel.app
+
+## Módulos
+
+| Módulo | O que faz |
+|---|---|
+| **Pedidos** | Cadastro de pedidos personalizados (cliente, produto, cores, texto, quantidade, data de entrega). Calcula a urgência de cada pedido (atrasado, urgente, próximo ou tranquilo) e acompanha o status (pendente, em produção, pronto, entregue). |
+| **Estoque** | Cadastro de insumos com quantidade atual e mínima. Classifica cada insumo como normal, baixo ou crítico e indica quanto repor. |
+| **Precificação** | Calcula o custo de cada produto a partir dos insumos usados e sugere o preço de venda considerando mão de obra, perdas, custos fixos e margem desejada. |
+| **Clientes** | Cadastro de clientes com aviso de possíveis duplicados. |
+
+Itens excluídos vão para uma lixeira e podem ser restaurados.
+
+## Tecnologias
+
+- **Next.js 16** (React 19, App Router) e **TypeScript**
+- **Tailwind CSS 4**
+- **Supabase** (Postgres) como banco de dados
+- **API REST** própria em `app/api`
+- **Vitest** para testes automatizados
+- Hospedagem na **Vercel**
+
+## Estrutura
+
+```
+app/
+  api/            rotas REST (clientes, insumos, produtos, pedidos, configuracoes)
+  components/     componentes da interface (abas, formulários, elementos visuais)
+  configuracoes/  tela de configurações de precificação
+  page.tsx        tela principal
+lib/
+  pedidos.ts      regras de urgência e status dos pedidos
+  estoque.ts      regras de status e reposição do estoque
+  precificacao.ts cálculo de custo e preço sugerido
+  validacao.ts    validação dos dados de entrada
+  visao.ts        filtros, ordenação e resumos exibidos nas telas
+  repositorio.ts  acesso aos dados (Supabase, com dados em memória como reserva)
+supabase/
+  schema.sql      criação das tabelas
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Como rodar localmente
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Requisitos: Node.js 20 ou superior.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+cp .env.example .env.local   # preencha com os dados do seu projeto Supabase
+npm run dev
+```
 
-## Learn More
+Acesse http://localhost:3000.
 
-To learn more about Next.js, take a look at the following resources:
+Sem as variáveis do Supabase o sistema funciona com dados de exemplo em memória, que se perdem ao reiniciar o servidor.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Banco de dados
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+No painel do Supabase, abra o **SQL Editor** e execute o conteúdo de `supabase/schema.sql`. O script pode ser executado mais de uma vez sem apagar dados.
 
-## Deploy on Vercel
+Variáveis de ambiente:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Variável | Uso |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave pública (somente leitura) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Chave de servidor, necessária para gravar. Nunca deve ser exposta no navegador |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Testes
+
+```bash
+npm test
+```
+
+Os testes cobrem as regras de pedidos, estoque, precificação, validação, as telas de resumo e as rotas da API.
+
+## Acessibilidade
+
+Formulários com rótulos associados aos campos, contraste adequado, navegação por teclado e layout adaptado para celular.
