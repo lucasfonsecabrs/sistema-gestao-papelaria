@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+!.env.example
+
+# arquivos gerados automaticamente pelo next dev
+AGENTS.md
+CLAUDE.md
