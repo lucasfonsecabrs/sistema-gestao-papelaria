@@ -96,10 +96,9 @@ describe("API de produtos", () => {
 describe("API de pedidos", () => {
   const novoPedido = {
     cliente_id: "cli-2",
-    produto_id: "prod-2",
+    itens: [{ produto_id: "prod-2", quantidade: 2 }],
     cores: "Rosa",
     texto_personalizacao: "",
-    quantidade: 2,
     data_entrega: "2026-10-20",
     valor_final: 1,
   };
@@ -135,8 +134,32 @@ describe("API de pedidos", () => {
     const status = (await json(await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, status: "em_producao" })))).corpo;
     expect(status.valor_final).toBe(criado.valor_final);
 
-    const quantidade = (await json(await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, quantidade: 3 })))).corpo;
+    const quantidade = (
+      await json(await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, itens: [{ produto_id: "prod-2", quantidade: 3 }] })))
+    ).corpo;
     expect(quantidade.valor_final).toBeGreaterThan(criado.valor_final);
+  });
+
+  it("soma o valor de vários produtos e recusa produto repetido ou pedido vazio", async () => {
+    const umProduto = async (produtoId: string, quantidade: number) =>
+      (await json(await pedidosApi.POST(requisicao("/api/pedidos", "POST", { ...novoPedido, itens: [{ produto_id: produtoId, quantidade }] }))))
+        .corpo.valor_final as number;
+    const esperado = Number(((await umProduto("prod-1", 1)) + (await umProduto("prod-2", 2))).toFixed(2));
+
+    const itens = [
+      { produto_id: "prod-1", quantidade: 1 },
+      { produto_id: "prod-2", quantidade: 2 },
+    ];
+    const criado = await json(await pedidosApi.POST(requisicao("/api/pedidos", "POST", { ...novoPedido, itens })));
+    expect(criado.status).toBe(201);
+    expect(criado.corpo.itens).toEqual(itens);
+    expect(criado.corpo.valor_final).toBe(esperado);
+
+    const repetido = await pedidosApi.POST(
+      requisicao("/api/pedidos", "POST", { ...novoPedido, itens: [itens[0], { produto_id: "prod-1", quantidade: 3 }] }),
+    );
+    expect(repetido.status).toBe(400);
+    expect((await pedidosApi.POST(requisicao("/api/pedidos", "POST", { ...novoPedido, itens: [] }))).status).toBe(400);
   });
 
   it("exclui para a lixeira e restaura", async () => {
@@ -193,7 +216,7 @@ describe("API de configurações", () => {
     ).corpo;
     expect(produto.tempo_producao_minutos).toBe(30);
 
-    const pedido = { cliente_id: "cli-1", produto_id: produto.id, quantidade: 1, data_entrega: "2026-10-30" };
+    const pedido = { cliente_id: "cli-1", itens: [{ produto_id: produto.id, quantidade: 1 }], data_entrega: "2026-10-30" };
 
     await configuracoesApi.PUT(requisicao("/api/configuracoes", "PUT", { valor_hora_trabalho: 0, percentual_perdas: 0, percentual_custos_fixos: 0 }));
     const semConfig = (await json(await pedidosApi.POST(requisicao("/api/pedidos", "POST", pedido)))).corpo;

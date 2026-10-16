@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { itensIguais, type ItemPedido } from "@/lib/pedidos";
 import { calcularValorPedidoProduto } from "@/lib/precificacao";
 import { atualizar, criar, idsAtivos, listar, obter, obterConfiguracoes } from "@/lib/repositorio";
 import {
@@ -16,19 +17,30 @@ export async function GET(request: Request) {
   return responderListagem("pedidos", request);
 }
 
-// The order value is always computed here from the product composition,
+// The order value is always computed here from each product's composition,
 // current insumo costs, pricing settings, margin and quantity, never trusted
-// from the client.
-async function calcularValor(produtoId: string, quantidade: number): Promise<number | null> {
-  const produto =
-    (await obter("produtos", produtoId)) ??
-    (await listar("produtos", { lixeira: true })).find((item) => item.id === produtoId);
+// from the client. It is the sum of the items.
+async function calcularValor(itens: ItemPedido[]): Promise<number | null> {
+  const [ativos, removidos, insumos, configuracoes] = await Promise.all([
+    listar("produtos"),
+    listar("produtos", { lixeira: true }),
+    listar("insumos"),
+    obterConfiguracoes(),
+  ]);
+  const produtos = new Map([...removidos, ...ativos].map((produto) => [produto.id, produto]));
+  let total = 0;
 
-  if (!produto) {
-    return null;
+  for (const item of itens) {
+    const produto = produtos.get(item.produto_id);
+
+    if (!produto) {
+      return null;
+    }
+
+    total += calcularValorPedidoProduto(produto, insumos, item.quantidade, configuracoes);
   }
 
-  return calcularValorPedidoProduto(produto, await listar("insumos"), quantidade, await obterConfiguracoes());
+  return Number(total.toFixed(2));
 }
 
 async function vinculos() {
@@ -53,7 +65,7 @@ export async function POST(request: Request) {
     return respostaErro(resultado.erro);
   }
 
-  const valorFinal = await calcularValor(resultado.dados.produto_id, resultado.dados.quantidade);
+  const valorFinal = await calcularValor(resultado.dados.itens);
 
   if (valorFinal === null) {
     return respostaErro("Produto não encontrado.");
@@ -88,11 +100,8 @@ export async function PUT(request: Request) {
   // Keep the agreed price unless what is being sold changed.
   let valorFinal = atual.valor_final;
 
-  if (
-    resultado.dados.produto_id !== atual.produto_id ||
-    resultado.dados.quantidade !== atual.quantidade
-  ) {
-    const recalculado = await calcularValor(resultado.dados.produto_id, resultado.dados.quantidade);
+  if (!itensIguais(resultado.dados.itens, atual.itens)) {
+    const recalculado = await calcularValor(resultado.dados.itens);
 
     if (recalculado === null) {
       return respostaErro("Produto não encontrado.");

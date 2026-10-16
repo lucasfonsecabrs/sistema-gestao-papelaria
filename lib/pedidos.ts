@@ -104,3 +104,23 @@ export function proximoStatus(statusAtual: StatusPedido): StatusPedido | null {
 export function statusValido(status: unknown): status is StatusPedido {
   return STATUS_PEDIDO.includes(status as StatusPedido);
 }
+
+export type ItemPedido = {
+  produto_id: string;
+  quantidade: number;
+};
+
+// Ex.: "1× Topo de bolo + 2× Kit festa básico".
+export function descreverItens(itens: readonly ItemPedido[], nomeProduto: (id: string) => string): string {
+  return itens.map((item) => `${item.quantidade}× ${nomeProduto(item.produto_id)}`).join(" + ");
+}
+
+// Mesmos produtos com as mesmas quantidades, em qualquer ordem.
+export function itensIguais(a: readonly ItemPedido[], b: readonly ItemPedido[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  const quantidades = new Map(a.map((item) => [item.produto_id, item.quantidade]));
+  return b.every((item) => quantidades.get(item.produto_id) === item.quantidade);
+}

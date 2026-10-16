@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   calcularUrgenciaPedido,
+  descreverItens,
+  itensIguais,
   dataIsoValida,
   formatarData,
   parseDataLocal,
@@ -82,10 +84,9 @@ describe("updatePedido", () => {
   it("atualiza status, quantidade e texto de um pedido existente", () => {
     const pedido = createPedido({
       cliente_id: "cli-1",
-      produto_id: "prod-1",
+      itens: [{ produto_id: "prod-1", quantidade: 3 }],
       cores: "Preto",
       texto_personalizacao: "Antigo",
-      quantidade: 3,
       data_entrega: "2026-10-01",
       status: "pendente",
       valor_final: 90,
@@ -93,12 +94,12 @@ describe("updatePedido", () => {
 
     const atualizado = updatePedido(pedido.id, {
       status: "pronto",
-      quantidade: 12,
+      itens: [{ produto_id: "prod-1", quantidade: 12 }],
       texto_personalizacao: "Novo texto",
     });
 
     expect(atualizado?.status).toBe("pronto");
-    expect(atualizado?.quantidade).toBe(12);
+    expect(atualizado?.itens).toEqual([{ produto_id: "prod-1", quantidade: 12 }]);
     expect(atualizado?.texto_personalizacao).toBe("Novo texto");
     expect(pedidos.some((item) => item.id === pedido.id && item.status === "pronto")).toBe(true);
   });
@@ -106,10 +107,9 @@ describe("updatePedido", () => {
   it("não apaga campos que não foram enviados na atualização parcial", () => {
     const pedido = createPedido({
       cliente_id: "cli-3",
-      produto_id: "prod-1",
+      itens: [{ produto_id: "prod-1", quantidade: 4 }],
       cores: "Verde",
       texto_personalizacao: "Parcial",
-      quantidade: 4,
       data_entrega: "2026-10-05",
       status: "pendente",
       valor_final: 40,
@@ -124,10 +124,9 @@ describe("updatePedido", () => {
   it("move o pedido excluído para a lixeira e permite restaurar", () => {
     const pedido = createPedido({
       cliente_id: "cli-2",
-      produto_id: "prod-2",
+      itens: [{ produto_id: "prod-2", quantidade: 2 }],
       cores: "Rosa",
       texto_personalizacao: "Delete",
-      quantidade: 2,
       data_entrega: "2026-10-03",
       status: "pendente",
       valor_final: 50,
@@ -240,5 +239,31 @@ describe("calcularUrgenciaPedido nos limites exatos", () => {
 
   it.each(casos)("entrega em %s → %s", (data, esperado) => {
     expect(calcularUrgenciaPedido(data, hoje)).toBe(esperado);
+  });
+});
+
+describe("itens do pedido", () => {
+  const nome = (id: string) => (id === "p1" ? "Topo de bolo" : "Kit festa básico");
+
+  it("descreve vários produtos com suas quantidades", () => {
+    expect(
+      descreverItens(
+        [
+          { produto_id: "p1", quantidade: 1 },
+          { produto_id: "p2", quantidade: 2 },
+        ],
+        nome,
+      ),
+    ).toBe("1× Topo de bolo + 2× Kit festa básico");
+  });
+
+  it("compara itens sem depender da ordem", () => {
+    const a = [
+      { produto_id: "p1", quantidade: 1 },
+      { produto_id: "p2", quantidade: 2 },
+    ];
+    expect(itensIguais(a, [...a].reverse())).toBe(true);
+    expect(itensIguais(a, [{ produto_id: "p1", quantidade: 1 }])).toBe(false);
+    expect(itensIguais(a, [{ produto_id: "p1", quantidade: 1 }, { produto_id: "p2", quantidade: 3 }])).toBe(false);
   });
 });

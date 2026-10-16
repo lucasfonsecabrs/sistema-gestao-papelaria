@@ -1,4 +1,4 @@
-import { type StatusPedido } from "./pedidos";
+import { type ItemPedido, type StatusPedido } from "./pedidos";
 import { CONFIGURACOES_PADRAO, type Configuracoes } from "./precificacao";
 
 export type Cliente = {
@@ -33,10 +33,9 @@ export type Produto = {
 export type Pedido = {
   id: string;
   cliente_id: string;
-  produto_id: string;
+  itens: ItemPedido[];
   cores: string;
   texto_personalizacao: string;
-  quantidade: number;
   data_entrega: string;
   status: StatusPedido;
   valor_final: number;
@@ -200,10 +199,9 @@ export const pedidos: Pedido[] = [
   {
     id: "ped-1",
     cliente_id: "cli-1",
-    produto_id: "prod-1",
+    itens: [{ produto_id: "prod-1", quantidade: 24 }],
     cores: "Azul e branco",
     texto_personalizacao: "Parabéns, Maria!",
-    quantidade: 24,
     data_entrega: "2026-09-26",
     status: "pendente",
     valor_final: 280,
@@ -211,10 +209,9 @@ export const pedidos: Pedido[] = [
   {
     id: "ped-2",
     cliente_id: "cli-2",
-    produto_id: "prod-2",
+    itens: [{ produto_id: "prod-2", quantidade: 18 }],
     cores: "Bege",
     texto_personalizacao: "João, sucesso!",
-    quantidade: 18,
     data_entrega: "2026-09-28",
     status: "em_producao",
     valor_final: 210,
@@ -340,10 +337,9 @@ export function restaurarProduto(id: string): Produto | undefined {
 
 export function createPedido(input: {
   cliente_id: string;
-  produto_id: string;
+  itens: ItemPedido[];
   cores: string;
   texto_personalizacao: string;
-  quantidade: number;
   data_entrega: string;
   status: StatusPedido;
   valor_final: number;
@@ -351,10 +347,9 @@ export function createPedido(input: {
   const pedido: Pedido = {
     id: crypto.randomUUID(),
     cliente_id: input.cliente_id,
-    produto_id: input.produto_id,
+    itens: input.itens.map((item) => ({ ...item })),
     cores: input.cores,
     texto_personalizacao: input.texto_personalizacao,
-    quantidade: input.quantidade,
     data_entrega: input.data_entrega,
     status: input.status,
     valor_final: input.valor_final,
@@ -366,7 +361,7 @@ export function createPedido(input: {
 
 export function updatePedido(
   id: string,
-  input: Partial<Pick<Pedido, "cliente_id" | "produto_id" | "cores" | "texto_personalizacao" | "quantidade" | "data_entrega" | "status" | "valor_final">>,
+  input: Partial<Pick<Pedido, "cliente_id" | "itens" | "cores" | "texto_personalizacao" | "data_entrega" | "status" | "valor_final">>,
 ): Pedido | undefined {
   const index = pedidos.findIndex((pedido) => pedido.id === id);
 

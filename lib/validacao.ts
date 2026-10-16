@@ -3,6 +3,7 @@ import type { Configuracoes } from "./precificacao";
 import {
   dataIsoValida,
   statusValido,
+  type ItemPedido,
   type StatusPedido,
 } from "./pedidos";
 
@@ -191,10 +192,9 @@ export function validarProduto(
 
 export type DadosPedido = {
   cliente_id: string;
-  produto_id: string;
+  itens: ItemPedido[];
   cores: string;
   texto_personalizacao: string;
-  quantidade: number;
   data_entrega: string;
   status: StatusPedido;
 };
@@ -206,22 +206,44 @@ export function validarPedido(
 ): Resultado<DadosPedido> {
   return validar(() => {
     const clienteId = textoObrigatorio(campo(payload, atual, "cliente_id"), "Cliente");
-    const produtoId = textoObrigatorio(campo(payload, atual, "produto_id"), "Produto");
 
-    // Links are only checked when they change, so an order whose client was
-    // later moved to the trash can still be edited.
+    // Links are only checked when they change, so an order whose client or
+    // product was later moved to the trash can still be edited.
     if (clienteId !== atual?.cliente_id && !vinculos.clientes.has(clienteId)) {
       falhar("Cliente não encontrado.");
     }
 
-    if (produtoId !== atual?.produto_id && !vinculos.produtos.has(produtoId)) {
-      falhar("Produto não encontrado.");
+    const linhas = campo(payload, atual, "itens");
+
+    if (!Array.isArray(linhas) || linhas.length === 0) {
+      falhar("Adicione pelo menos um produto ao pedido.");
     }
 
-    const quantidade = numeroNaoNegativo(campo(payload, atual, "quantidade"), "Quantidade");
+    const produtosAtuais = new Set(atual?.itens.map((item) => item.produto_id));
+    const itens = (linhas as unknown[]).map((linha, index) => {
+      const item = (linha ?? {}) as Payload;
+      const produtoId = textoObrigatorio(item.produto_id, `Produto da linha ${index + 1}`);
 
-    if (!Number.isInteger(quantidade) || quantidade < 1) {
-      falhar("Quantidade deve ser um número inteiro maior que zero.");
+      if (!produtosAtuais.has(produtoId) && !vinculos.produtos.has(produtoId)) {
+        falhar(`O produto da linha ${index + 1} não foi encontrado.`);
+      }
+
+      const quantidade = Number(item.quantidade);
+
+      if (!Number.isInteger(quantidade) || quantidade < 1) {
+        falhar(`A quantidade da linha ${index + 1} deve ser um número inteiro maior que zero.`);
+      }
+
+      return { produto_id: produtoId, quantidade };
+    });
+
+    // pedido_itens is keyed by (pedido_id, produto_id): one line per product.
+    const repetido = itens.findIndex(
+      (item, index) => itens.findIndex((outro) => outro.produto_id === item.produto_id) !== index,
+    );
+
+    if (repetido !== -1) {
+      falhar(`O produto da linha ${repetido + 1} já está no pedido. Some as quantidades em uma linha só.`);
     }
 
     const dataEntrega = textoObrigatorio(campo(payload, atual, "data_entrega"), "Data de entrega");
@@ -238,10 +260,9 @@ export function validarPedido(
 
     return {
       cliente_id: clienteId,
-      produto_id: produtoId,
+      itens,
       cores: textoOpcional(campo(payload, atual, "cores")),
       texto_personalizacao: textoOpcional(campo(payload, atual, "texto_personalizacao")),
-      quantidade,
       data_entrega: dataEntrega,
       status,
     };

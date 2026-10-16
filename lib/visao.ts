@@ -79,7 +79,7 @@ export function filtrarPedidos(
 
       return [
         nomes.cliente(pedido.cliente_id),
-        nomes.produto(pedido.produto_id),
+        ...pedido.itens.map((item) => nomes.produto(item.produto_id)),
         pedido.cores,
         pedido.texto_personalizacao,
       ].some((texto) => contem(texto, busca));

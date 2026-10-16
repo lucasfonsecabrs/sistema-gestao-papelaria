@@ -19,10 +19,9 @@ function pedido(parcial: Partial<Pedido>): Pedido {
   return {
     id: crypto.randomUUID(),
     cliente_id: "c1",
-    produto_id: "p1",
+    itens: [{ produto_id: "p1", quantidade: 1 }],
     cores: "",
     texto_personalizacao: "",
-    quantidade: 1,
     data_entrega: "2026-10-10",
     status: "pendente",
     valor_final: 10,
@@ -38,7 +37,7 @@ const nomes = {
 describe("filtrarPedidos", () => {
   const lista = [
     pedido({ id: "a", data_entrega: "2026-10-05", cores: "Azul" }),
-    pedido({ id: "b", data_entrega: "2026-09-20", cliente_id: "c2", produto_id: "p2" }),
+    pedido({ id: "b", data_entrega: "2026-09-20", cliente_id: "c2", itens: [{ produto_id: "p2", quantidade: 1 }] }),
     pedido({ id: "c", data_entrega: "2026-09-26", status: "entregue" }),
   ];
 

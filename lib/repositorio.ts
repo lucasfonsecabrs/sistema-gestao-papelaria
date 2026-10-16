@@ -31,7 +31,6 @@ import {
   type Insumo,
   type Pedido,
   type Produto,
-  type ProdutoInsumo,
 } from "./store";
 
 export type Registros = {
@@ -123,47 +122,66 @@ async function viaSupabase<R>(
   return SEM_RESULTADO;
 }
 
-// In the database the composition of a product lives in `produto_insumos`;
-// the app works with it embedded as `produto.insumos`.
+// Lists embedded in a record live in their own table in the database: the
+// composition of a product in `produto_insumos` (`produto.insumos`) and the
+// items of an order in `pedido_itens` (`pedido.itens`).
+type Composicao = { tabela: "produto_insumos" | "pedido_itens"; chave: string; campo: string };
+
+const COMPOSICAO: Partial<Record<Tabela, Composicao>> = {
+  produtos: { tabela: "produto_insumos", chave: "produto_id", campo: "insumos" },
+  pedidos: { tabela: "pedido_itens", chave: "pedido_id", campo: "itens" },
+};
+
 const SELECAO: Record<Tabela, string> = {
   clientes: "*",
   insumos: "*",
-  pedidos: "*",
+  pedidos: "*, pedido_itens(produto_id, quantidade)",
   produtos: "*, produto_insumos(insumo_id, quantidade_por_unidade)",
 };
 
 function doBanco<T extends Tabela>(tabela: T, linha: Linha): Registros[T] {
-  if (tabela !== "produtos") {
+  const composicao = COMPOSICAO[tabela];
+
+  if (!composicao) {
     return linha as unknown as Registros[T];
   }
 
-  const { produto_insumos: composicao, ...produto } = linha;
-  return { ...produto, insumos: (composicao as ProdutoInsumo[] | null) ?? [] } as unknown as Registros[T];
+  const { [composicao.tabela]: lista, ...registro } = linha;
+  return { ...registro, [composicao.campo]: (lista as Linha[] | null) ?? [] } as unknown as Registros[T];
 }
 
-function separarComposicao(tabela: Tabela, dados: Linha): { colunas: Linha; insumos?: ProdutoInsumo[] } {
-  if (tabela !== "produtos") {
+function separarComposicao(tabela: Tabela, dados: Linha): { colunas: Linha; lista?: Linha[] } {
+  const composicao = COMPOSICAO[tabela];
+
+  if (!composicao) {
     return { colunas: dados };
   }
 
-  const { insumos, ...colunas } = dados;
-  return { colunas, insumos: insumos as ProdutoInsumo[] | undefined };
+  const { [composicao.campo]: lista, ...colunas } = dados;
+  return { colunas, lista: lista as Linha[] | undefined };
 }
 
 async function gravarComposicao(
   db: Supabase,
-  produtoId: string,
-  insumos: ProdutoInsumo[],
+  tabela: Tabela,
+  id: string,
+  lista: Linha[],
 ): Promise<RespostaSupabase<true>> {
-  const limpeza = await db.from("produto_insumos").delete().eq("produto_id", produtoId);
+  const composicao = COMPOSICAO[tabela];
 
-  if (limpeza.error || insumos.length === 0) {
+  if (!composicao) {
+    return { data: true, error: null };
+  }
+
+  const limpeza = await db.from(composicao.tabela).delete().eq(composicao.chave, id);
+
+  if (limpeza.error || lista.length === 0) {
     return { data: true, error: limpeza.error };
   }
 
   const { error } = await db
-    .from("produto_insumos")
-    .insert(insumos.map((item) => ({ produto_id: produtoId, ...item })));
+    .from(composicao.tabela)
+    .insert(lista.map((item) => ({ [composicao.chave]: id, ...item })));
   return { data: true, error };
 }
 
@@ -199,18 +217,18 @@ export async function obter<T extends Tabela>(
 }
 
 export async function criar<T extends Tabela>(tabela: T, dados: Dados<T>): Promise<Registros[T]> {
-  const { colunas, insumos } = separarComposicao(tabela, dados as Linha);
+  const { colunas, lista } = separarComposicao(tabela, dados as Linha);
   const remoto = await viaSupabase<Linha>(tabela, async (db) => {
     const inserido = await db.from(tabela).insert(colunas).select("*").single();
 
-    if (inserido.error || !insumos) {
+    if (inserido.error || !lista) {
       return inserido;
     }
 
-    const composicao = await gravarComposicao(db, String(inserido.data.id), insumos);
+    const composicao = await gravarComposicao(db, tabela, String(inserido.data.id), lista);
     return composicao.error
       ? { data: null, error: composicao.error }
-      : { data: { ...inserido.data, produto_insumos: insumos }, error: null };
+      : { data: { ...inserido.data, [COMPOSICAO[tabela]!.tabela]: lista }, error: null };
   });
 
   if (remoto !== SEM_RESULTADO && remoto) {
@@ -225,7 +243,7 @@ export async function atualizar<T extends Tabela>(
   id: string,
   dados: Partial<Dados<T>>,
 ): Promise<Registros[T] | undefined> {
-  const { colunas, insumos } = separarComposicao(tabela, dados as Linha);
+  const { colunas, lista } = separarComposicao(tabela, dados as Linha);
   const remoto = await viaSupabase<Linha>(tabela, async (db) => {
     const atualizado = await db
       .from(tabela)
@@ -235,14 +253,14 @@ export async function atualizar<T extends Tabela>(
       .select(SELECAO[tabela])
       .maybeSingle();
 
-    if (atualizado.error || !atualizado.data || !insumos) {
+    if (atualizado.error || !atualizado.data || !lista) {
       return { data: atualizado.data as unknown as Linha | null, error: atualizado.error };
     }
 
-    const composicao = await gravarComposicao(db, id, insumos);
+    const composicao = await gravarComposicao(db, tabela, id, lista);
     return composicao.error
       ? { data: null, error: composicao.error }
-      : { data: { ...(atualizado.data as unknown as Linha), produto_insumos: insumos }, error: null };
+      : { data: { ...(atualizado.data as unknown as Linha), [COMPOSICAO[tabela]!.tabela]: lista }, error: null };
   });
 
   if (remoto !== SEM_RESULTADO) {

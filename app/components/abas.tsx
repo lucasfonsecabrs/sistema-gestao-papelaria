@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { CATEGORIAS_INSUMO, formatarQuantidade } from "@/lib/estoque";
-import { formatarData, proximoStatus, ROTULO_STATUS, STATUS_PEDIDO } from "@/lib/pedidos";
+import { descreverItens, formatarData, proximoStatus, ROTULO_STATUS, STATUS_PEDIDO } from "@/lib/pedidos";
 import type { Configuracoes } from "@/lib/precificacao";
 import type { Cliente, Insumo, Pedido, Produto } from "@/lib/store";
 import {
@@ -150,7 +150,7 @@ export function AbaPainel({
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-stone-900">{nomes.cliente(pedido.cliente_id)}</p>
                       <p className="text-sm text-stone-600">
-                        {pedido.quantidade}× {nomes.produto(pedido.produto_id)} · entrega {formatarData(pedido.data_entrega)}
+                        {descreverItens(pedido.itens, nomes.produto)} · entrega {formatarData(pedido.data_entrega)}
                       </p>
                       <div className="mt-1 flex gap-1.5">
                         <SeloUrgencia urgencia={urgenciaDoPedido(pedido, hoje)} />
@@ -347,7 +347,7 @@ export function AbaPedidos({
                     <div className="min-w-0">
                       <p className="truncate font-bold text-stone-900">{nomes.cliente(pedido.cliente_id)}</p>
                       <p className="text-sm text-stone-600">
-                        {pedido.quantidade}× {nomes.produto(pedido.produto_id)}
+                        {descreverItens(pedido.itens, nomes.produto)}
                       </p>
                     </div>
                     <p className="shrink-0 font-bold text-stone-900">{formatarMoeda(pedido.valor_final)}</p>
@@ -383,7 +383,7 @@ export function AbaPedidos({
           titulo="Pedidos excluídos"
           itens={lixeira.map((pedido) => ({
             id: pedido.id,
-            nome: `${nomes.cliente(pedido.cliente_id)} · ${pedido.quantidade}× ${nomes.produto(pedido.produto_id)}`,
+            nome: `${nomes.cliente(pedido.cliente_id)} · ${descreverItens(pedido.itens, nomes.produto)}`,
             detalhe: `Entrega ${formatarData(pedido.data_entrega)} · ${formatarMoeda(pedido.valor_final)}`,
           }))}
           onRestaurar={onRestaurar}

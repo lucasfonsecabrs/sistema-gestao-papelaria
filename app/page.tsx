@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { chamarApi, type RespostaApi } from "@/lib/cliente-api";
-import { formatarData, proximoStatus, ROTULO_STATUS } from "@/lib/pedidos";
+import { descreverItens, formatarData, proximoStatus, ROTULO_STATUS } from "@/lib/pedidos";
 import { CONFIGURACOES_PADRAO, type Configuracoes } from "@/lib/precificacao";
 import type { Registros, Tabela } from "@/lib/repositorio";
 import type { Cliente, Insumo, Pedido, Produto } from "@/lib/store";
@@ -288,7 +288,9 @@ export default function Home() {
   const pedidosAbertosPorProduto = useMemo(() => {
     const contagem = new Map<string, number>();
     for (const pedido of ativos.pedidos.filter(pedidoAberto)) {
-      contagem.set(pedido.produto_id, (contagem.get(pedido.produto_id) ?? 0) + 1);
+      for (const item of pedido.itens) {
+        contagem.set(item.produto_id, (contagem.get(item.produto_id) ?? 0) + 1);
+      }
     }
     return contagem;
   }, [ativos.pedidos]);
@@ -300,7 +302,7 @@ export default function Home() {
       titulo: "Excluir pedido?",
       mensagem: (
         <p>
-          O pedido de <strong>{nomes.cliente(pedido.cliente_id)}</strong> ({pedido.quantidade}× {nomes.produto(pedido.produto_id)},
+          O pedido de <strong>{nomes.cliente(pedido.cliente_id)}</strong> ({descreverItens(pedido.itens, nomes.produto)},
           entrega {formatarData(pedido.data_entrega)}) vai para a lixeira e pode ser restaurado.
         </p>
       ),

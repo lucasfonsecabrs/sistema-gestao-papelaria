@@ -4,7 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 
 import type { RespostaApi } from "@/lib/cliente-api";
 import { CATEGORIAS_INSUMO, formatarQuantidade, normalizarUnidade, ROTULO_UNIDADE, UNIDADES } from "@/lib/estoque";
-import { adicionarDias, paraDataIso, ROTULO_STATUS, STATUS_PEDIDO, type StatusPedido } from "@/lib/pedidos";
+import { adicionarDias, itensIguais, paraDataIso, ROTULO_STATUS, STATUS_PEDIDO, type StatusPedido } from "@/lib/pedidos";
 import { detalharProduto, type Configuracoes } from "@/lib/precificacao";
 import type { Cliente, Insumo, Pedido, Produto } from "@/lib/store";
 import type { ProdutoComDetalhe } from "@/lib/visao";
@@ -529,27 +529,48 @@ export function FormularioPedido({
   const [duplicado, setDuplicado] = useState<Cliente | null>(null);
   const [form, setForm] = useState({
     cliente_id: pedido?.cliente_id ?? clienteInicialId ?? clientes[0]?.id ?? "",
-    produto_id: pedido?.produto_id ?? produtos[0]?.id ?? "",
     cores: pedido?.cores ?? "",
     texto_personalizacao: pedido?.texto_personalizacao ?? "",
-    quantidade: pedido ? String(pedido.quantidade) : "1",
     data_entrega: pedido?.data_entrega ?? paraDataIso(adicionarDias(hoje, 7)),
     status: pedido?.status ?? ("pendente" as StatusPedido),
   });
+  const [linhas, setLinhas] = useState(() =>
+    (pedido?.itens ?? [{ produto_id: produtos[0]?.id ?? "", quantidade: 1 }]).map((item) => ({
+      chave: crypto.randomUUID(),
+      produto_id: item.produto_id,
+      quantidade: String(item.quantidade),
+    })),
+  );
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
   const atualizar = (campo: keyof typeof form, valor: string) =>
     setForm((atual) => ({ ...atual, [campo]: valor }));
 
+  const atualizarLinha = (chave: string, campo: "produto_id" | "quantidade", valor: string) =>
+    setLinhas((atual) => atual.map((linha) => (linha.chave === chave ? { ...linha, [campo]: valor } : linha)));
+
+  const somarQuantidade = (chave: string, delta: number) =>
+    setLinhas((atual) =>
+      atual.map((linha) =>
+        linha.chave === chave
+          ? { ...linha, quantidade: String(Math.max(1, (Number(linha.quantidade) || 0) + delta)) }
+          : linha,
+      ),
+    );
+
+  const usados = new Set(linhas.map((linha) => linha.produto_id));
+  const proximoProduto = [...produtos].sort((a, b) => a.nome.localeCompare(b.nome)).find((item) => !usados.has(item.id));
+
   const clienteRemovido = clientesRemovidos.find((cliente) => cliente.id === form.cliente_id);
-  const produtoRemovido = produtosRemovidos.find((produto) => produto.id === form.produto_id);
-  const produto = produtos.find((item) => item.id === form.produto_id);
-  const quantidade = Number(form.quantidade) || 0;
-  // Same formula as the server: suggested unit price × quantity.
-  const valorCalculado = produto ? Number((produto.detalhe.precoSugerido * quantidade).toFixed(2)) : 0;
-  const mantemValor =
-    pedido !== undefined && pedido.produto_id === form.produto_id && pedido.quantidade === quantidade;
+  const itens = linhas.map((linha) => ({ produto_id: linha.produto_id, quantidade: Number(linha.quantidade) || 0 }));
+  // Same formula as the server: suggested unit price × quantity, summed over the items.
+  const subtotais = itens.map((item) => {
+    const produto = produtos.find((outro) => outro.id === item.produto_id);
+    return produto ? Number((produto.detalhe.precoSugerido * item.quantidade).toFixed(2)) : 0;
+  });
+  const valorCalculado = Number(subtotais.reduce((total, valor) => total + valor, 0).toFixed(2));
+  const mantemValor = pedido !== undefined && itensIguais(pedido.itens, itens);
   // Ao editar, qualquer situação pode ser escolhida (inclusive voltar uma etapa).
   const statusPermitidos: readonly StatusPedido[] = pedido ? STATUS_PEDIDO : ["pendente"];
 
@@ -587,7 +608,7 @@ export function FormularioPedido({
     }
 
     setDuplicado(null);
-    const resposta = await onSalvar({ ...form, cliente_id: clienteId, quantidade });
+    const resposta = await onSalvar({ ...form, cliente_id: clienteId, itens });
     setSalvando(false);
 
     if (!resposta.ok) setErro(resposta.erro);
@@ -691,27 +712,83 @@ export function FormularioPedido({
         )}
       </fieldset>
 
-      <div>
-        <label htmlFor="pedido_produto" className={classeRotulo}>Produto</label>
-        <select id="pedido_produto" value={form.produto_id} required onChange={(event) => atualizar("produto_id", event.target.value)} className={classeCampo}>
-          {produtoRemovido && <option value={produtoRemovido.id}>{produtoRemovido.nome} (na lixeira)</option>}
-          {[...produtos]
-            .sort((a, b) => a.nome.localeCompare(b.nome))
-            .map((item) => (
-              <option key={item.id} value={item.id}>{item.nome}</option>
-            ))}
-        </select>
-        {produto && produto.detalhe.insumosComProblema.length > 0 && (
-          <p className="mt-1.5 text-xs font-semibold text-red-700">
-            Este produto usa insumo removido; o valor pode estar abaixo do real.
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label htmlFor="pedido_quantidade" className={classeRotulo}>Quantidade</label>
-        <input id="pedido_quantidade" type="number" min="1" step="1" required value={form.quantidade} onChange={(event) => atualizar("quantidade", event.target.value)} className={classeCampo} />
-      </div>
+      <fieldset className="md:col-span-2">
+        <legend className={classeRotulo}>Produtos</legend>
+        <ol className="space-y-2">
+          {linhas.map((linha, indice) => {
+            const produto = produtos.find((item) => item.id === linha.produto_id);
+            const removido = produtosRemovidos.find((item) => item.id === linha.produto_id);
+            return (
+              <li key={linha.chave} className="rounded-lg border border-stone-200 bg-white p-3">
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                  <select
+                    aria-label={`Produto da linha ${indice + 1}`}
+                    value={linha.produto_id}
+                    required
+                    onChange={(event) => atualizarLinha(linha.chave, "produto_id", event.target.value)}
+                    className={classeCampo}
+                  >
+                    {removido && <option value={removido.id}>{removido.nome} (na lixeira)</option>}
+                    {[...produtos]
+                      .sort((a, b) => a.nome.localeCompare(b.nome))
+                      .map((item) => (
+                        <option key={item.id} value={item.id} disabled={item.id !== linha.produto_id && usados.has(item.id)}>
+                          {item.nome}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => somarQuantidade(linha.chave, -1)} disabled={(Number(linha.quantidade) || 0) <= 1} className={classeBotaoLinha} aria-label={`Diminuir quantidade da linha ${indice + 1}`}>−</button>
+                    <div className="w-20">
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        aria-label={`Quantidade da linha ${indice + 1}`}
+                        value={linha.quantidade}
+                        onChange={(event) => atualizarLinha(linha.chave, "quantidade", event.target.value)}
+                        className={`text-center ${classeCampo}`}
+                      />
+                    </div>
+                    <button type="button" onClick={() => somarQuantidade(linha.chave, 1)} className={classeBotaoLinha} aria-label={`Aumentar quantidade da linha ${indice + 1}`}>+</button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLinhas((atual) => atual.filter((item) => item.chave !== linha.chave))}
+                    disabled={linhas.length === 1}
+                    className={classeBotaoLinha}
+                    aria-label={`Remover produto da linha ${indice + 1}`}
+                  >
+                    Remover
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-stone-500">
+                  {produto
+                    ? `${itens[indice].quantidade} × ${formatarMoeda(produto.detalhe.precoSugerido)} = ${formatarMoeda(subtotais[indice])}`
+                    : "Produto na lixeira: troque por outro ou restaure o produto."}
+                </p>
+                {produto && produto.detalhe.insumosComProblema.length > 0 && (
+                  <p className="mt-1 text-xs font-semibold text-red-700">
+                    Este produto usa insumo removido; o valor pode estar abaixo do real.
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        <button
+          type="button"
+          disabled={!proximoProduto}
+          onClick={() =>
+            proximoProduto &&
+            setLinhas((atual) => [...atual, { chave: crypto.randomUUID(), produto_id: proximoProduto.id, quantidade: "1" }])
+          }
+          className={`mt-3 ${classeBotaoSecundario}`}
+        >
+          + Adicionar produto
+        </button>
+      </fieldset>
 
       <div>
         <label htmlFor="pedido_cores" className={classeRotulo}>Cores</label>
@@ -734,7 +811,7 @@ export function FormularioPedido({
           <select id="pedido_status" value={form.status} onChange={(event) => atualizar("status", event.target.value)} className={classeCampo}>
             {statusPermitidos.map((status) => (
               <option key={status} value={status}>
-                {status === pedido.status ? ROTULO_STATUS[status] : `Avançar para: ${ROTULO_STATUS[status]}`}
+                {ROTULO_STATUS[status]}
               </option>
             ))}
           </select>
@@ -748,7 +825,7 @@ export function FormularioPedido({
             <p className="text-xl font-black text-stone-900">{formatarMoeda(pedido.valor_final)}</p>
             {Math.abs(valorCalculado - pedido.valor_final) >= 0.01 && (
               <p className="mt-1 text-xs text-stone-500">
-                Pelos custos de hoje seria {formatarMoeda(valorCalculado)}. O valor só é recalculado se mudar produto ou quantidade.
+                Pelos custos de hoje seria {formatarMoeda(valorCalculado)}. O valor só é recalculado se mudar produtos ou quantidades.
               </p>
             )}
           </>
@@ -756,10 +833,8 @@ export function FormularioPedido({
           <>
             <p className="text-xs text-stone-500">Valor calculado automaticamente</p>
             <p className="text-xl font-black text-stone-900">{formatarMoeda(valorCalculado)}</p>
-            {produto && quantidade > 0 && (
-              <p className="mt-1 text-xs text-stone-500">
-                {quantidade} × {formatarMoeda(produto.detalhe.precoSugerido)} (custo total {formatarMoeda(produto.detalhe.custoTotal)} + {produto.margem_desejada}% de margem)
-              </p>
+            {linhas.length > 1 && (
+              <p className="mt-1 text-xs text-stone-500">Soma dos {linhas.length} produtos acima.</p>
             )}
           </>
         )}

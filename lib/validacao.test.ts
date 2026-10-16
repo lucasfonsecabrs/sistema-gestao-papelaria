@@ -146,11 +146,10 @@ describe("validarProduto", () => {
 });
 
 describe("validarPedido", () => {
-  const vinculos = { clientes: new Set(["cli-1"]), produtos: new Set(["prod-1"]) };
+  const vinculos = { clientes: new Set(["cli-1"]), produtos: new Set(["prod-1", "prod-2"]) };
   const base = {
     cliente_id: "cli-1",
-    produto_id: "prod-1",
-    quantidade: 2,
+    itens: [{ produto_id: "prod-1", quantidade: 2 }],
     data_entrega: "2026-10-10",
   };
 
@@ -161,12 +160,27 @@ describe("validarPedido", () => {
 
   it("recusa cliente ou produto inexistente", () => {
     expect(validarPedido({ ...base, cliente_id: "x" }, vinculos)).toEqual({ ok: false, erro: "Cliente não encontrado." });
-    expect(validarPedido({ ...base, produto_id: "x" }, vinculos)).toEqual({ ok: false, erro: "Produto não encontrado." });
+    expect(validarPedido({ ...base, itens: [{ produto_id: "x", quantidade: 1 }] }, vinculos)).toEqual({
+      ok: false,
+      erro: "O produto da linha 1 não foi encontrado.",
+    });
+  });
+
+  it("aceita vários produtos e recusa pedido vazio ou produto repetido", () => {
+    const varios = validarPedido(
+      { ...base, itens: [{ produto_id: "prod-1", quantidade: 1 }, { produto_id: "prod-2", quantidade: 1 }] },
+      vinculos,
+    );
+    expect(varios.ok && varios.dados.itens).toHaveLength(2);
+    expect(validarPedido({ ...base, itens: [] }, vinculos)).toEqual({ ok: false, erro: "Adicione pelo menos um produto ao pedido." });
+    expect(
+      validarPedido({ ...base, itens: [{ produto_id: "prod-1", quantidade: 1 }, { produto_id: "prod-1", quantidade: 2 }] }, vinculos).ok,
+    ).toBe(false);
   });
 
   it("recusa quantidade inválida, data inválida e status desconhecido", () => {
-    expect(validarPedido({ ...base, quantidade: 0 }, vinculos).ok).toBe(false);
-    expect(validarPedido({ ...base, quantidade: 1.5 }, vinculos).ok).toBe(false);
+    expect(validarPedido({ ...base, itens: [{ produto_id: "prod-1", quantidade: 0 }] }, vinculos).ok).toBe(false);
+    expect(validarPedido({ ...base, itens: [{ produto_id: "prod-1", quantidade: 1.5 }] }, vinculos).ok).toBe(false);
     expect(validarPedido({ ...base, data_entrega: "2026-13-01" }, vinculos).ok).toBe(false);
     expect(validarPedido({ ...base, status: "cancelado" }, vinculos).ok).toBe(false);
   });
@@ -187,11 +201,11 @@ describe("validarPedido", () => {
 
   it("permite editar pedido cujo cliente foi para a lixeira sem trocar o cliente", () => {
     const resultado = validarPedido(
-      { quantidade: 5 },
+      { itens: [{ produto_id: "prod-1", quantidade: 5 }] },
       { clientes: new Set(), produtos: vinculos.produtos },
       atual,
     );
-    expect(resultado.ok && resultado.dados.quantidade).toBe(5);
+    expect(resultado.ok && resultado.dados.itens).toEqual([{ produto_id: "prod-1", quantidade: 5 }]);
   });
 });
 

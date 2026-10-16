@@ -54,15 +54,21 @@ create table if not exists produto_insumos (
 create table if not exists pedidos (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references clientes (id),
-  produto_id uuid not null references produtos (id),
   cores text not null default '',
   texto_personalizacao text not null default '',
-  quantidade integer not null check (quantidade > 0),
   data_entrega date not null,
   status text not null default 'pendente'
     check (status in ('pendente', 'em_producao', 'pronto', 'entregue')),
   valor_final numeric not null default 0 check (valor_final >= 0),
   excluido_em timestamptz -- [adição]
+);
+
+-- Um pedido pode ter vários produtos, cada um com sua quantidade.
+create table if not exists pedido_itens (
+  pedido_id uuid not null references pedidos (id) on delete cascade,
+  produto_id uuid not null references produtos (id),
+  quantidade integer not null check (quantidade > 0),
+  primary key (pedido_id, produto_id)
 );
 
 -- Para bancos criados antes destas colunas:
@@ -72,3 +78,20 @@ alter table insumos add column if not exists excluido_em timestamptz;
 alter table produtos add column if not exists tempo_producao_minutos numeric not null default 0;
 alter table produtos add column if not exists excluido_em timestamptz;
 alter table pedidos add column if not exists excluido_em timestamptz;
+
+-- Para bancos em que o pedido tinha um único produto (colunas produto_id e
+-- quantidade em pedidos): copia cada pedido para pedido_itens e remove as
+-- colunas antigas. Roda uma vez só; depois disso não faz nada.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'pedidos' and column_name = 'produto_id'
+  ) then
+    insert into pedido_itens (pedido_id, produto_id, quantidade)
+    select id, produto_id, quantidade from pedidos
+    on conflict (pedido_id, produto_id) do nothing;
+
+    alter table pedidos drop column produto_id, drop column quantidade;
+  end if;
+end $$;
