@@ -5,7 +5,7 @@ Sistema web de gestão desenvolvido para a **Malô Personalizados**, uma MEI de 
 Projeto Integrador em Computação II — UNIVESP, 2026.
 Autor: Lucas Henrique Gonçalves da Fonseca.
 
-**Produção:** https://pi-system-azure.vercel.app
+**Produção:** https://sistema-gestao-papelaria-alpha.vercel.app
 
 ## Módulos
 
