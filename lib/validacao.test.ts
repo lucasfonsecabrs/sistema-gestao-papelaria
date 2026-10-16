@@ -178,10 +178,11 @@ describe("validarPedido", () => {
     status: "pendente",
   };
 
-  it("permite avançar uma etapa por vez", () => {
+  it("permite mudar a situação para qualquer etapa, inclusive voltar", () => {
     expect(validarPedido({ status: "em_producao" }, vinculos, atual).ok).toBe(true);
-    expect(validarPedido({ status: "pronto" }, vinculos, atual).ok).toBe(false);
-    expect(validarPedido({ status: "pendente" }, vinculos, { ...atual, status: "pronto" }).ok).toBe(false);
+    expect(validarPedido({ status: "entregue" }, vinculos, atual).ok).toBe(true);
+    expect(validarPedido({ status: "pendente" }, vinculos, { ...atual, status: "pronto" }).ok).toBe(true);
+    expect(validarPedido({ status: "cancelado" }, vinculos, atual).ok).toBe(false);
   });
 
   it("permite editar pedido cujo cliente foi para a lixeira sem trocar o cliente", () => {

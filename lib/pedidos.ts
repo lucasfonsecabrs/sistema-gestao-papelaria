@@ -96,20 +96,6 @@ export function calcularUrgenciaPedido(
   return "tranquilo";
 }
 
-export function transicaoStatusValida(
-  statusAtual: StatusPedido,
-  novoStatus: StatusPedido,
-): boolean {
-  const indiceAtual = STATUS_PEDIDO.indexOf(statusAtual);
-  const indiceNovo = STATUS_PEDIDO.indexOf(novoStatus);
-
-  if (indiceAtual === -1 || indiceNovo === -1) {
-    return false;
-  }
-
-  return indiceNovo === indiceAtual + 1;
-}
-
 export function proximoStatus(statusAtual: StatusPedido): StatusPedido | null {
   const indice = STATUS_PEDIDO.indexOf(statusAtual);
   return STATUS_PEDIDO[indice + 1] ?? null;

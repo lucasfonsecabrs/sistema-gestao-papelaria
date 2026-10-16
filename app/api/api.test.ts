@@ -113,15 +113,18 @@ describe("API de pedidos", () => {
     expect(criado.corpo.status).toBe("pendente");
   });
 
-  it("recusa ids inexistentes e pular etapas de status", async () => {
+  it("recusa ids inexistentes e permite mudar a situação para qualquer etapa", async () => {
     expect((await pedidosApi.POST(requisicao("/api/pedidos", "POST", { ...novoPedido, cliente_id: "x" }))).status).toBe(400);
 
     const criado = (await json(await pedidosApi.POST(requisicao("/api/pedidos", "POST", novoPedido)))).corpo;
-    const pulo = await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, status: "entregue" }));
-    expect(pulo.status).toBe(400);
+    const entregue = await json(await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, status: "entregue" })));
+    expect(entregue.corpo).toMatchObject({ status: "entregue", cliente_id: "cli-2", data_entrega: "2026-10-20" });
 
-    const avanco = await json(await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, status: "em_producao" })));
-    expect(avanco.corpo).toMatchObject({ status: "em_producao", cliente_id: "cli-2", data_entrega: "2026-10-20" });
+    const volta = await json(await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, status: "em_producao" })));
+    expect(volta.corpo).toMatchObject({ status: "em_producao" });
+
+    const invalido = await pedidosApi.PUT(requisicao("/api/pedidos", "PUT", { id: criado.id, status: "cancelado" }));
+    expect(invalido.status).toBe(400);
   });
 
   it("mantém o valor combinado quando só o status muda e recalcula quando a quantidade muda", async () => {

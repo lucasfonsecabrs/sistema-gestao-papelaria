@@ -6,7 +6,6 @@ import {
   formatarData,
   parseDataLocal,
   proximoStatus,
-  transicaoStatusValida,
   STATUS_PEDIDO,
   type StatusPedido,
 } from "./pedidos";
@@ -67,27 +66,7 @@ describe("dataIsoValida", () => {
   });
 });
 
-describe("transicaoStatusValida", () => {
-  it("avança de pendente para em_producao", () => {
-    expect(transicaoStatusValida("pendente", "em_producao")).toBe(true);
-  });
-
-  it("avança de em_producao para pronto", () => {
-    expect(transicaoStatusValida("em_producao", "pronto")).toBe(true);
-  });
-
-  it("impede pular etapas", () => {
-    expect(transicaoStatusValida("pendente", "pronto")).toBe(false);
-  });
-
-  it("impede voltar status", () => {
-    expect(transicaoStatusValida("pronto", "pendente")).toBe(false);
-  });
-
-  it("não permite transição fora da sequência", () => {
-    expect(transicaoStatusValida("entregue", "pronto")).toBe(false);
-  });
-
+describe("proximoStatus", () => {
   it("indica o próximo status e nenhum após entregue", () => {
     expect(proximoStatus("pendente")).toBe("em_producao");
     expect(proximoStatus("entregue")).toBeNull();

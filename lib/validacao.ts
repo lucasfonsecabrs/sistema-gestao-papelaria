@@ -2,9 +2,7 @@ import { CATEGORIAS_INSUMO, normalizarUnidade, UNIDADES, type Unidade } from "./
 import type { Configuracoes } from "./precificacao";
 import {
   dataIsoValida,
-  ROTULO_STATUS,
   statusValido,
-  transicaoStatusValida,
   type StatusPedido,
 } from "./pedidos";
 
@@ -236,12 +234,6 @@ export function validarPedido(
 
     if (!statusValido(status)) {
       falhar("Status inválido.");
-    }
-
-    if (atual && status !== atual.status && !transicaoStatusValida(atual.status, status)) {
-      falhar(
-        `Não é possível mudar de "${ROTULO_STATUS[atual.status]}" para "${ROTULO_STATUS[status]}". Siga a ordem: pendente, em produção, pronto, entregue.`,
-      );
     }
 
     return {

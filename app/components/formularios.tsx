@@ -4,7 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 
 import type { RespostaApi } from "@/lib/cliente-api";
 import { CATEGORIAS_INSUMO, formatarQuantidade, normalizarUnidade, ROTULO_UNIDADE, UNIDADES } from "@/lib/estoque";
-import { adicionarDias, paraDataIso, proximoStatus, ROTULO_STATUS, type StatusPedido } from "@/lib/pedidos";
+import { adicionarDias, paraDataIso, ROTULO_STATUS, STATUS_PEDIDO, type StatusPedido } from "@/lib/pedidos";
 import { detalharProduto, type Configuracoes } from "@/lib/precificacao";
 import type { Cliente, Insumo, Pedido, Produto } from "@/lib/store";
 import type { ProdutoComDetalhe } from "@/lib/visao";
@@ -550,9 +550,8 @@ export function FormularioPedido({
   const valorCalculado = produto ? Number((produto.detalhe.precoSugerido * quantidade).toFixed(2)) : 0;
   const mantemValor =
     pedido !== undefined && pedido.produto_id === form.produto_id && pedido.quantidade === quantidade;
-  const statusPermitidos = pedido
-    ? [pedido.status, proximoStatus(pedido.status)].filter((status): status is StatusPedido => status !== null)
-    : (["pendente"] as StatusPedido[]);
+  // Ao editar, qualquer situação pode ser escolhida (inclusive voltar uma etapa).
+  const statusPermitidos: readonly StatusPedido[] = pedido ? STATUS_PEDIDO : ["pendente"];
 
   const garantirCliente = async (confirmarDuplicado: boolean): Promise<string | null> => {
     if (modoCliente === "existente") {
