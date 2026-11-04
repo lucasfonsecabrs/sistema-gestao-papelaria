@@ -31,6 +31,7 @@ body {
 button,
 input,
 select,
-textarea {
+textarea,
+.como-botao {
   font: inherit;
 }

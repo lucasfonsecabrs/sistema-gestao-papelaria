@@ -369,6 +369,7 @@ export function AbaPedidos({
                       </button>
                     )}
                     <button type="button" onClick={() => onEditar(pedido.id)} className={classeBotaoLinha}>Editar</button>
+                    <Link href={`/orcamento/${pedido.id}`} className={`${classeBotaoLinha} como-botao`}>Orçamento</Link>
                     <button type="button" onClick={() => onExcluir(pedido)} className={classeBotaoLinhaPerigo}>Excluir</button>
                   </div>
                 </li>
